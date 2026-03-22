@@ -1,0 +1,19 @@
+{
+  "folders": [
+    { "path": ".",               "name": "Root" },
+    { "path": "./orchestrator",  "name": "Orchestrator" },
+    { "path": "./shared",        "name": "Shared Context" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/.git": true,
+      "orchestrator": true,
+      "shared": true
+    }
+  },
+  "extensions": {
+    "recommendations": []
+  }
+}
