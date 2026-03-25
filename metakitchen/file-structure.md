@@ -10,7 +10,6 @@ meta-repo/
 ├── .github/copilot-instructions.md  ← GitHub Copilot → AGENTS.md
 ├── .windsurfrules                   ← Windsurf → AGENTS.md
 ├── .clinerules                      ← Cline → AGENTS.md
-├── .amazonq/rules/README.md         ← Amazon Q → AGENTS.md
 ├── .roo/rules/README.md             ← Roo Code → AGENTS.md
 ├── .junie/guidelines.md             ← JetBrains Junie → AGENTS.md
 │
@@ -21,13 +20,13 @@ meta-repo/
 │   ├── configuration.md
 │   └── tips.md
 │
-├── shared/                          ← read-only shared context
+├── metak-shared/                    ← read-only shared context
 │   ├── architecture.md              ← system-level architecture overview and ADRs
 │   ├── api-contracts/               ← OpenAPI specs, protobuf definitions, shared schemas
 │   ├── coding-standards.md          ← language-specific conventions, linting rules
 │   └── glossary.md                  ← domain terminology
 │
-├── orchestrator/                    ← orchestrator agent workspace
+├── metak-orchestrator/              ← orchestrator agent workspace
 │   ├── AGENTS.md                    ← orchestrator-specific instructions
 │   ├── TASKS.md                     ← task breakdown (orchestrator writes, workers read)
 │   └── STATUS.md                    ← execution status updated by workers
@@ -56,10 +55,10 @@ Entry point for VS Code. Contains workspace folder definitions, shared settings,
 
 Shared agent instructions that any AI coding agent should read. Contains the meta-repo structure, rules, and coding standards. Each sub-repo can have its own `AGENTS.md` for repo-specific instructions. Agent-specific files (e.g. `.claude/CLAUDE.md`) should just point here.
 
-### `shared/`
+### `metak-shared/`
 
 The shared ground truth that all agents can read but should never modify without user approval. Contains architecture docs, API contracts, coding standards, and a domain glossary.
 
-### `orchestrator/`
+### `metak-orchestrator/`
 
 Workspace for a coordinating agent. Contains `TASKS.md` (task definitions) and `STATUS.md` (worker progress). The orchestrator plans and delegates but never writes application code directly.
