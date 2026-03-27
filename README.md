@@ -2,14 +2,23 @@
 
 MetaKitchen is a language-agnostic scaffold for AI-driven development across multiple repositories. It pre-wires every major AI coding agent to read a single `AGENTS.md`, so whichever agent a developer uses, it picks up the same shared instructions — no extra setup.
 
+## Motivation
+
+AI coding agents are multiplying fast — Claude Code, Cursor, Copilot, Codex, and more — but each has its own convention for discovering project instructions. On a collaborative open-source project, one contributor might use Claude Code while another uses Cursor and a third uses Copilot. Without a shared standard, each person's agent operates in isolation, unaware of the project's architecture, coding standards, or task plan.
+
+MetaKitchen solves this by giving every agent a single entry point (`AGENTS.md`) through their native discovery mechanisms. Write your instructions once; every agent finds them automatically.
+
+The name combines **meta-programming** with **kitchen orchestration** — a head chef (the orchestrator agent) directs multiple cooks (worker agents), each responsible for a different part of the meal, all following the same recipes.
+
 ## What You Get
 
 - **Agent pointer files** for 9 AI coding agents (Claude Code, Cursor, GitHub Copilot, Codex CLI, Cline, Roo Code, Junie, Windsurf, Gemini CLI) — all pointing at one `AGENTS.md`.
 - **`metak-shared/`** — read-only shared context: architecture docs, coding standards, API contracts, and a domain glossary.
 - **`metak-orchestrator/`** — a workspace for a coordinating agent that plans work across repos and spawns worker agents.
 - **`meta.code-workspace`** — a VS Code multi-root workspace so all repos appear in one sidebar.
-- **Updates to the template** — improvements to the scaffold code repo can be pulled into existing projects without overwriting custom instructions.
 - **`CUSTOM.md`** files for project-specific instructions that won't be overwritten by updates.
+- **Updates to the template** — as contributors add improvements to the scaffold code, they can be pulled into existing projects without overwriting custom instructions.
+
 
 ## Quickstart
 
@@ -55,7 +64,9 @@ mkdir backend
 metak add backend
 ```
 
-Either way, `metak add` registers the folder in `meta.code-workspace` and scaffolds a starter `AGENTS.md` inside it. See [Usage](metakitchen/usage.md) for details on both layouts.
+You can also have a mix of both — for example, folders for separate services that are part of the same repo as your workspace, and submodules for external dependencies or other components.
+
+Either way, `metak add` registers each folder in `meta.code-workspace` and scaffolds a starter `AGENTS.md` inside it. See [Usage](metakitchen/usage.md) for details on both layouts.
 
 ### 4. Open the workspace
 
