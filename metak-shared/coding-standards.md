@@ -1,6 +1,8 @@
 # Coding Standards
 
-<!-- Language-specific conventions, linting rules, test expectations. -->
+- All code must pass linting and tests before committing.
+- Never import directly from another repo's source code. Use shared contracts in `metak-shared/api-contracts/`.
+- When in doubt about system boundaries, consult `metak-shared/architecture.md`.
 
 ## Commit Messages
 

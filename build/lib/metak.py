@@ -50,7 +50,6 @@ METAK_HOME = _resolve_metak_home()
 TEMPLATE_FILES = [
     # Root-level agent instruction files
     "AGENTS.md",
-    "CUSTOM.md",
     "GEMINI.md",
     ".clinerules",
     ".windsurfrules",
@@ -82,21 +81,10 @@ EXCLUDED = {
     "__pycache__",
 }
 
-# User-owned files that are created on first install but never overwritten,
-# even with --force.  Paths are relative to the install target.
-PROTECTED_FILES = {
-    "CUSTOM.md",
-    "metak-orchestrator/CUSTOM.md",
-}
-
 # ---------------------------------------------------------------------------
 # AGENTS.md template for sub-repos (used by `metak add`)
 # ---------------------------------------------------------------------------
-AGENTS_MD_TEMPLATE_FILE = "metak-shared/templates/AGENTS.md.template"
-CUSTOM_MD_TEMPLATE_FILE = "metak-shared/templates/CUSTOM.md.template"
-
-# Inline fallback used when the template file doesn't exist
-AGENTS_MD_TEMPLATE_FALLBACK = """\
+AGENTS_MD_TEMPLATE = """\
 # {name} Agent Guide
 
 Repo-specific agent instructions for `{name}`.
@@ -109,35 +97,13 @@ Read the root `AGENTS.md` first for global rules, project structure, and coding 
 ## Agent Rules
 
 1. Follow all rules in the root `AGENTS.md`.
-2. <!-- Add any repo-specific rules here. -->
+2. **Do not modify `shared/`.** Propose changes via the orchestrator for user review.
+3. <!-- Add any repo-specific rules here. -->
 
 ## Coding Standards
 
 - <!-- Language, framework, and linting conventions specific to this repo. -->
 """
-
-
-def _load_agents_template(root):
-    """Load the AGENTS.md template from the project, falling back to the inline default."""
-    template_path = root / AGENTS_MD_TEMPLATE_FILE
-    if template_path.exists():
-        return template_path.read_text(encoding="utf-8")
-    return AGENTS_MD_TEMPLATE_FALLBACK
-
-
-CUSTOM_MD_TEMPLATE_FALLBACK = """\
-# {name} Custom Instructions
-
-<!-- Add your custom instructions for {name} here. -->
-"""
-
-
-def _load_custom_template(root):
-    """Load the CUSTOM.md template from the project, falling back to the inline default."""
-    template_path = root / CUSTOM_MD_TEMPLATE_FILE
-    if template_path.exists():
-        return template_path.read_text(encoding="utf-8")
-    return CUSTOM_MD_TEMPLATE_FALLBACK
 
 
 # ===================================================================
@@ -268,11 +234,6 @@ def cmd_install(args):
         if not src.exists():
             continue
 
-        if rel in PROTECTED_FILES and dst.exists():
-            print("  [=] {} (protected, skipping)".format(rel))
-            skipped += 1
-            continue
-
         if dst.exists() and not args.force:
             print("  [=] {} (exists, skipping)".format(rel))
             skipped += 1
@@ -296,28 +257,13 @@ def cmd_install(args):
             skipped += 1
             continue
 
-        # Back up protected files inside this directory before --force overwrites it
-        saved = {}
         if dst.exists() and args.force:
-            for pf in PROTECTED_FILES:
-                if pf.startswith(rel + "/"):
-                    pf_path = target / pf
-                    if pf_path.exists():
-                        saved[pf] = pf_path.read_text(encoding="utf-8")
             shutil.rmtree(str(dst))
 
         shutil.copytree(
             str(src), str(dst),
             ignore=shutil.ignore_patterns(*EXCLUDED),
         )
-
-        # Restore protected files
-        for pf, content in saved.items():
-            pf_path = target / pf
-            pf_path.parent.mkdir(parents=True, exist_ok=True)
-            pf_path.write_text(content, encoding="utf-8")
-            print("  [=] {} (protected, restored)".format(pf))
-
         print("  [+] {}/".format(rel))
         copied += 1
 
@@ -359,15 +305,10 @@ def cmd_add(args):
     else:
         print("  [=] '{}' already in {}".format(folder_name, workspace_path.name))
 
-    if scaffold_agents_md(folder_path, folder_name, root):
+    if scaffold_agents_md(folder_path, folder_name):
         print("  [+] Created {}/AGENTS.md".format(folder_name))
     else:
         print("  [=] {}/AGENTS.md already exists, skipping".format(folder_name))
-
-    if scaffold_custom_md(folder_path, folder_name, root):
-        print("  [+] Created {}/CUSTOM.md".format(folder_name))
-    else:
-        print("  [=] {}/CUSTOM.md already exists, skipping".format(folder_name))
 
     print()
     print("Done. Open {} in VS Code.".format(workspace_path.name))
@@ -409,25 +350,12 @@ def add_to_workspace(workspace_path, folder_name):
     return True
 
 
-def scaffold_agents_md(folder_path, folder_name, root):
+def scaffold_agents_md(folder_path, folder_name):
     target = folder_path / "AGENTS.md"
     if target.exists():
         return False
-    template = _load_agents_template(root)
     target.write_text(
-        template.format(name=folder_name),
-        encoding="utf-8",
-    )
-    return True
-
-
-def scaffold_custom_md(folder_path, folder_name, root):
-    target = folder_path / "CUSTOM.md"
-    if target.exists():
-        return False
-    template = _load_custom_template(root)
-    target.write_text(
-        template.format(name=folder_name),
+        AGENTS_MD_TEMPLATE.format(name=folder_name),
         encoding="utf-8",
     )
     return True
