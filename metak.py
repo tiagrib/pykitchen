@@ -109,7 +109,8 @@ Read the root `AGENTS.md` first for global rules, project structure, and coding 
 ## Agent Rules
 
 1. Follow all rules in the root `AGENTS.md`.
-2. <!-- Add any repo-specific rules here. -->
+2. Consult `metak-shared/LEARNED.md` for useful methods, procedures, and tricks discovered during the project. Add new learnings as you discover them.
+3. <!-- Add any repo-specific rules here. -->
 
 ## Coding Standards
 

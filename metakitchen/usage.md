@@ -196,6 +196,7 @@ For changes isolated to one repo, skip the orchestrator. Open an agent terminal 
 1. Make changes to `metak-shared/` yourself or have the orchestrator propose them for your review.
 2. Notify relevant agents by updating `TASKS.md` or mentioning the change in your next interaction.
 3. Never let a worker agent modify `metak-shared/` without explicit approval.
+4. When any agent discovers useful methods, procedures, or tricks during development or testing, they should document them in `metak-shared/LEARNED.md` so the knowledge is available to all agents and future projects.
 
 ## Updating MetaKitchen
 

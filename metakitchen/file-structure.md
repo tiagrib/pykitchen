@@ -21,6 +21,7 @@ my-project/
 │   ├── architecture.md              ← system-level architecture overview and ADRs
 │   ├── coding-standards.md          ← language-specific conventions, linting rules
 │   ├── glossary.md                  ← domain terminology
+│   ├── LEARNED.md                   ← methods, procedures, and tricks discovered during work
 │   └── templates/                   ← templates used by `metak add`
 │       ├── AGENTS.md.template
 │       └── CUSTOM.md.template

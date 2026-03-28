@@ -32,6 +32,7 @@ Worker agents operate within a single sub-repo. They:
 - Read their assignment from `metak-orchestrator/TASKS.md`.
 - Update `metak-orchestrator/STATUS.md` when done or blocked.
 - **Treat `metak-shared/` as read-only.** Never modify shared docs — propose changes via the orchestrator for user review.
+- **Document learnings.** When you discover useful methods, procedures, or tricks during development or testing, note them in `metak-shared/LEARNED.md` so they can be shared across all agents and future projects.
 
 ## Agent Rules
 

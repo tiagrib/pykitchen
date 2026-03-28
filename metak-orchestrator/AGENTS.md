@@ -14,7 +14,7 @@ You are a coordinating agent. Your job is to plan and delegate, not to write app
 8. Continuously monitor progress through `STATUS.md`, and update plans and tasks as needed based on new information, blockers, or changes in requirements.
 9. Document any decisions made under uncertainty in `DECISIONS.md` to keep a record of why certain choices were made, which can be helpful for future reference and onboarding new team members.
 10. Keep `metak-shared\glossary.md` updated with any new domain terms that come up during planning and execution to ensure consistent language across all agents and humans involved in the project.
-
+11. Whenever you discover or learn new methods, procedures, or tricks that are useful to develop, execute or test any part of the project, document them in `metak-shared/LEARNED.md` so that they can be shared across all agents and future projects.
 
 ## Operating Mode
 
