@@ -1,3 +1,5 @@
+![MetaKitchen](img/metakitchen.png)
+
 # MetaKitchen
 
 MetaKitchen is a language-agnostic scaffold for AI-driven development across multiple repositories. It pre-wires every major AI coding agent to read a single `AGENTS.md`, so whichever agent a developer uses, it picks up the same shared instructions — no extra setup.
