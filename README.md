@@ -23,12 +23,13 @@ MetaKitchen is not an agent tailored for any specific language, framework, or do
 ## What You Get
 
 - **Agent pointer files** for 9 AI coding agents (Claude Code, Cursor, GitHub Copilot, Codex CLI, Cline, Roo Code, Junie, Windsurf, Gemini CLI) — all pointing at one `AGENTS.md`.
-- **Role routing** — `.claude/CLAUDE.md` at the root automatically selects orchestrator or worker role based on task scope. Per-repo `.claude/CLAUDE.md` files declare worker identity.
+- **Role routing** — every agent pointer file automatically selects orchestrator or worker role based on task scope. Per-repo `.claude/CLAUDE.md` files declare worker identity.
 - **`metak-shared/`** — read-only shared context: project overview, architecture docs, API contracts, coding standards, glossary, and a LEARNED.md for discovered methods.
 - **`metak-orchestrator/`** — a workspace for a coordinating agent with TASKS.md, STATUS.md, EPICS.md, and DECISIONS.md.
 - **`meta.code-workspace`** — a VS Code multi-root workspace so all repos appear in one sidebar.
 - **`CUSTOM.md`** files for project-specific instructions that won't be overwritten by updates. The orchestrator writes these to configure workers.
-- **Updates to the template** — as contributors add improvements to the scaffold code, they can be pulled into existing projects without overwriting custom instructions.
+- **`metak` CLI** — a lightweight utility to install, update, and manage agent instructions across your codebases (`metak install`, `metak add`, `metak uninstall`).
+- **Updates to the instructions** — as contributors add improvements to the scaffold code, they can be pulled into existing projects without overwriting custom instructions.
 
 
 ## Quickstart
@@ -42,7 +43,7 @@ Please contribute back any OS-specific instructions you find to the documentatio
 Clone this repo and run setup:
 
 ```bash
-git clone https://github.com/pfriedrich/metakitchen.git
+git clone https://github.com/tiagrib/metakitchen.git
 cd metakitchen
 pip install -e .
 metak setup
@@ -59,7 +60,7 @@ cd my-project
 metak install
 ```
 
-This copies the MetaKitchen template into your project — agent pointer files, `AGENTS.md`, `metak-shared/`, `metak-orchestrator/`, and the workspace file. Existing files are not overwritten (use `--force` to update them, except `CUSTOM.md` files which are always preserved).
+This copies the MetaKitchen template into your project — agent pointer files (with role routing), `AGENTS.md`, `CUSTOM.md`, `metak-shared/` (overview, architecture, api-contracts, coding standards, glossary, LEARNED.md), `metak-orchestrator/` (TASKS.md, STATUS.md, EPICS.md, DECISIONS.md), and the workspace file. Existing files are not overwritten (use `--force` to update them, except `CUSTOM.md` files which are always preserved).
 
 ### 3. Add sub-repos
 
@@ -73,9 +74,9 @@ metak add frontend
 # Monorepo layout (all code in one git repository)
 mkdir backend
 metak add backend
-```
 
-You can also have a mix of both — for example, folders for separate services that are part of the same repo as your workspace, and submodules for external dependencies or other components.
+# Or a mix of both - for example, a monorepo for frontend, utilities and integration tests, and a separate repo (submodule) for backend
+```
 
 Either way, `metak add` registers each folder in `meta.code-workspace`, scaffolds a starter `AGENTS.md`, `CUSTOM.md`, and `.claude/CLAUDE.md` (with worker identity) inside it. See [Usage](metakitchen/usage.md) for details on both layouts.
 
@@ -89,7 +90,7 @@ Then edit `AGENTS.md` at the root and fill in `metak-shared/` to describe your p
 
 ## How Orchestration Works
 
-Open one agent session in `metak-orchestrator/` and describe the goal. The orchestrator plans the work, writes a task breakdown to `TASKS.md`, then spawns a worker agent per repo to implement each task — all in the same session.
+Open one agent session in `metak-orchestrator/` and describe the goal. The orchestrator plans the work, writes a task breakdown to `TASKS.md`, configures workers via `CUSTOM.md` files, then spawns a worker agent per repo to implement each task. When workers finish, the orchestrator reviews their output against acceptance criteria and project goals, iterating with follow-up tasks until quality is met — all in the same session.
 
 If your agent doesn't support subagent spawning, the orchestrator will tell you which tasks to run manually and in which repo folder.
 
