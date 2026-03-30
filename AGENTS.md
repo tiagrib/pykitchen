@@ -18,7 +18,7 @@ meta-repo/
 │   └── LEARNED.md                   ← discovered methods and tricks
 ├── metak-orchestrator/              ← orchestrator workspace (TASKS.md, STATUS.md, EPICS.md)
 ├── repo-*/                          ← application sub-repos
-└── meta.code-workspace              ← VS Code multi-root workspace
+└── <project>.code-workspace         ← VS Code multi-root workspace
 ```
 
 ## Agent Roles

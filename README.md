@@ -26,7 +26,7 @@ MetaKitchen is not an agent tailored for any specific language, framework, or do
 - **Role routing** — every agent pointer file automatically selects orchestrator or worker role based on task scope. Per-repo `.claude/CLAUDE.md` files declare worker identity.
 - **`metak-shared/`** — read-only shared context: project overview, architecture docs, API contracts, coding standards, glossary, and a LEARNED.md for discovered methods.
 - **`metak-orchestrator/`** — a workspace for a coordinating agent with TASKS.md, STATUS.md, EPICS.md, and DECISIONS.md.
-- **`meta.code-workspace`** — a VS Code multi-root workspace so all repos appear in one sidebar.
+- **`<project>.code-workspace`** — a VS Code multi-root workspace (named after your project folder) so all repos appear in one sidebar.
 - **`CUSTOM.md`** files for project-specific instructions that won't be overwritten by updates. The orchestrator writes these to configure workers.
 - **`metak` CLI** — a lightweight utility to install, update, and manage agent instructions across your codebases (`metak install`, `metak add`, `metak uninstall`).
 - **Updates to the instructions** — as contributors add improvements to the scaffold code, they can be pulled into existing projects without overwriting custom instructions.
@@ -78,19 +78,19 @@ metak add backend
 # Or a mix of both - for example, a monorepo for frontend, utilities and integration tests, and a separate repo (submodule) for backend
 ```
 
-Either way, `metak add` registers each folder in `meta.code-workspace`, scaffolds a starter `AGENTS.md`, `CUSTOM.md`, and `.claude/CLAUDE.md` (with worker identity) inside it. See [Usage](metakitchen/usage.md) for details on both layouts.
+Either way, `metak add` registers each folder in the `.code-workspace` file, scaffolds a starter `AGENTS.md`, `CUSTOM.md`, and `.claude/CLAUDE.md` (with worker identity) inside it. See [Usage](metakitchen/usage.md) for details on both layouts.
 
 ### 4. Open the workspace
 
 ```bash
-code meta.code-workspace
+code my-project.code-workspace
 ```
 
-Then edit `AGENTS.md` at the root and fill in `metak-shared/` to describe your project. Any AI agent opened in any sub-repo will automatically pick up those instructions.
+Then edit `CUSTOM.md` at the root and fill in `metak-shared/` with any additional documentation and specification to describe your project. Any AI agent opened in any sub-repo will automatically pick up those instructions. Additional documentation and specs will also be added by the Orchestrator agent after you start providing it with goals and tasks.
 
 ## How Orchestration Works
 
-Open one agent session in `metak-orchestrator/` and describe the goal. The orchestrator plans the work, writes a task breakdown to `TASKS.md`, configures workers via `CUSTOM.md` files, then spawns a worker agent per repo to implement each task. When workers finish, the orchestrator reviews their output against acceptance criteria and project goals, iterating with follow-up tasks until quality is met — all in the same session.
+Open one agent session in `metak-orchestrator/` and describe the goal. If you're using VSCode, just open the `metak-orchestrator/AGENTS.md` file and then launch a chat using that file as context. The orchestrator plans the work, write specs, a task breakdown to `TASKS.md`, configures workers via `CUSTOM.md` files, then spawns a worker agent per repo to implement each task. When workers finish, the orchestrator reviews their output against acceptance criteria and project goals, iterating with follow-up tasks until quality is met — all in the same session.
 
 If your agent doesn't support subagent spawning, the orchestrator will tell you which tasks to run manually and in which repo folder.
 

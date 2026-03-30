@@ -48,7 +48,7 @@ This copies the MetaKitchen template into your project:
 - `AGENTS.md` and `CUSTOM.md`
 - `metak-shared/` with overview, architecture, api-contracts, coding standards, glossary, and LEARNED.md templates
 - `metak-orchestrator/` with TASKS.md, STATUS.md, EPICS.md, DECISIONS.md, and orchestrator CLAUDE.md
-- `meta.code-workspace` for VS Code multi-root workspace
+- `<project>.code-workspace` for VS Code multi-root workspace (named after your folder)
 - `GEMINI.md` and other agent-specific files
 
 Existing files are **not overwritten** unless you pass `--force`. `CUSTOM.md` files are **never overwritten**, even with `--force` — they are yours to customize.
@@ -62,10 +62,10 @@ metak install /path/to/my-project
 ### Open the workspace
 
 ```bash
-code meta.code-workspace
+code my-project.code-workspace
 ```
 
-Always open the workspace file, not individual folders. This gives you:
+Always open the `.code-workspace` file, not individual folders. This gives you:
 - All repos visible in the Explorer sidebar
 - Independent git tracking per repo
 - Unified search across all codebases
@@ -101,7 +101,7 @@ metak add frontend
 Commit everything:
 
 ```bash
-git add .gitmodules frontend meta.code-workspace
+git add .gitmodules frontend *.code-workspace
 git commit -m "chore: add frontend submodule"
 ```
 
@@ -153,7 +153,7 @@ This works well when:
 ### What `metak add` does
 
 Regardless of layout, `metak add <folder>` will:
-- Add the folder to `meta.code-workspace` so it appears in the VS Code Explorer sidebar
+- Add the folder to the `.code-workspace` file so it appears in the VS Code Explorer sidebar
 - Create a starter `AGENTS.md` in the folder if one doesn't already exist
 - Create a `CUSTOM.md` for repo-specific instructions
 - Create a `.claude/CLAUDE.md` with worker identity (scoped to that folder, with correct relative paths to metak-shared and metak-orchestrator)

@@ -6,7 +6,7 @@ After running `metak install` in your project, the following structure is create
 my-project/
 ├── AGENTS.md                        ← shared agent instructions (all AI agents read this)
 ├── CUSTOM.md                        ← project-specific custom instructions (never overwritten)
-├── meta.code-workspace              ← open this in VS Code
+├── <project>.code-workspace          ← open this in VS Code (named after your folder)
 ├── GEMINI.md                        ← Gemini CLI pointer to AGENTS.md
 ├── .claude/CLAUDE.md                ← Claude Code: role router (orchestrator vs worker)
 ├── .cursor/rules/README.mdc         ← Cursor → AGENTS.md
@@ -58,9 +58,9 @@ my-project/
 
 ## Key Files
 
-### `meta.code-workspace`
+### `<project>.code-workspace`
 
-Entry point for VS Code. Contains workspace folder definitions, shared settings, extension recommendations, and task definitions.
+Entry point for VS Code, named after your project folder (e.g. `my-project.code-workspace`). Contains workspace folder definitions, shared settings, extension recommendations, and task definitions.
 
 ### `.claude/CLAUDE.md` (root)
 

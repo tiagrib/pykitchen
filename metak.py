@@ -65,9 +65,11 @@ TEMPLATE_FILES = [
     ".junie/guidelines.md",
     ".roo/rules/README.md",
     ".vscode/launch.json",
-    # Workspace file
-    "meta.code-workspace",
 ]
+
+# The workspace file is handled separately — its name is derived from the
+# target project folder (e.g. "my-project.code-workspace").
+WORKSPACE_TEMPLATE = "meta.code-workspace"
 
 TEMPLATE_DIRS = [
     "metak-shared",
@@ -352,6 +354,19 @@ def cmd_install(args):
 
         print("  [+] {}/".format(rel))
         copied += 1
+
+    # Copy workspace file, renaming to match the target folder name
+    ws_src = METAK_HOME / WORKSPACE_TEMPLATE
+    if ws_src.exists():
+        ws_name = target.name + ".code-workspace"
+        ws_dst = target / ws_name
+        if ws_dst.exists() and not args.force:
+            print("  [=] {} (exists, skipping)".format(ws_name))
+            skipped += 1
+        else:
+            shutil.copy2(str(ws_src), str(ws_dst))
+            print("  [+] {}".format(ws_name))
+            copied += 1
 
     print()
     print("Done. {} copied, {} skipped.".format(copied, skipped))

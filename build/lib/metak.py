@@ -4,8 +4,9 @@ metak - MetaKitchen CLI
 
 Commands:
     metak setup              Set METAK_HOME env var and add to PATH (one-time)
-    metak install             Initialize MetaKitchen template in the current directory
-    metak add <folder>        Register a sub-repo in the workspace and scaffold AGENTS.md
+    metak install            Initialize MetaKitchen template in the current directory
+    metak uninstall          Remove MetaKitchen files from the current directory
+    metak add <folder>       Register a sub-repo in the workspace and scaffold AGENTS.md
 
 Prerequisites:
     - Python 3.7+
@@ -15,6 +16,7 @@ Examples:
     metak setup
     cd my-project && metak install
     metak add frontend
+    metak uninstall
 """
 
 import argparse
@@ -50,6 +52,7 @@ METAK_HOME = _resolve_metak_home()
 TEMPLATE_FILES = [
     # Root-level agent instruction files
     "AGENTS.md",
+    "CUSTOM.md",
     "GEMINI.md",
     ".clinerules",
     ".windsurfrules",
@@ -62,9 +65,11 @@ TEMPLATE_FILES = [
     ".junie/guidelines.md",
     ".roo/rules/README.md",
     ".vscode/launch.json",
-    # Workspace file
-    "meta.code-workspace",
 ]
+
+# The workspace file is handled separately — its name is derived from the
+# target project folder (e.g. "my-project.code-workspace").
+WORKSPACE_TEMPLATE = "meta.code-workspace"
 
 TEMPLATE_DIRS = [
     "metak-shared",
@@ -81,10 +86,22 @@ EXCLUDED = {
     "__pycache__",
 }
 
+# User-owned files that are created on first install but never overwritten,
+# even with --force.  Paths are relative to the install target.
+PROTECTED_FILES = {
+    "CUSTOM.md",
+    "metak-orchestrator/CUSTOM.md",
+}
+
 # ---------------------------------------------------------------------------
 # AGENTS.md template for sub-repos (used by `metak add`)
 # ---------------------------------------------------------------------------
-AGENTS_MD_TEMPLATE = """\
+AGENTS_MD_TEMPLATE_FILE = "metak-shared/templates/AGENTS.md.template"
+CUSTOM_MD_TEMPLATE_FILE = "metak-shared/templates/CUSTOM.md.template"
+CLAUDE_MD_WORKER_TEMPLATE_FILE = "metak-shared/templates/CLAUDE.md.worker.template"
+
+# Inline fallback used when the template file doesn't exist
+AGENTS_MD_TEMPLATE_FALLBACK = """\
 # {name} Agent Guide
 
 Repo-specific agent instructions for `{name}`.
@@ -97,13 +114,64 @@ Read the root `AGENTS.md` first for global rules, project structure, and coding 
 ## Agent Rules
 
 1. Follow all rules in the root `AGENTS.md`.
-2. **Do not modify `shared/`.** Propose changes via the orchestrator for user review.
+2. Consult `metak-shared/LEARNED.md` for useful methods, procedures, and tricks discovered during the project. Add new learnings as you discover them.
 3. <!-- Add any repo-specific rules here. -->
 
 ## Coding Standards
 
 - <!-- Language, framework, and linting conventions specific to this repo. -->
 """
+
+
+def _load_agents_template(root):
+    """Load the AGENTS.md template from the project, falling back to the inline default."""
+    template_path = root / AGENTS_MD_TEMPLATE_FILE
+    if template_path.exists():
+        return template_path.read_text(encoding="utf-8")
+    return AGENTS_MD_TEMPLATE_FALLBACK
+
+
+CUSTOM_MD_TEMPLATE_FALLBACK = """\
+# {name} Custom Instructions
+
+<!-- Add your custom instructions for {name} here. -->
+"""
+
+CLAUDE_MD_WORKER_TEMPLATE_FALLBACK = """\
+You are a **worker** agent operating within the `{name}/` subfolder.
+
+## Before starting work
+
+1. Read `AGENTS.md` in this directory if it exists, for repo-specific instructions.
+2. Read `CUSTOM.md` in this directory for project-specific rules set by the orchestrator.
+3. Read your task assignment — the orchestrator will have provided it, or you can find it in `{metak_orchestrator_rel}/TASKS.md`.
+4. Consult `{metak_shared_rel}/api-contracts/` for interface specs you must conform to.
+5. Consult `{metak_shared_rel}/architecture.md` for system boundaries.
+
+## Rules
+
+- Stay within `{name}/`. Do not modify files outside this directory.
+- Treat `{metak_shared_rel}/` as **read-only**.
+- Never import directly from another repo's source code — use the contracts in `metak-shared/api-contracts/`.
+- When done or blocked, update `{metak_orchestrator_rel}/STATUS.md`.
+- Follow coding standards in `{metak_shared_rel}/coding-standards.md`.
+"""
+
+
+def _load_custom_template(root):
+    """Load the CUSTOM.md template from the project, falling back to the inline default."""
+    template_path = root / CUSTOM_MD_TEMPLATE_FILE
+    if template_path.exists():
+        return template_path.read_text(encoding="utf-8")
+    return CUSTOM_MD_TEMPLATE_FALLBACK
+
+
+def _load_claude_worker_template(root):
+    """Load the .claude/CLAUDE.md worker template, falling back to the inline default."""
+    template_path = root / CLAUDE_MD_WORKER_TEMPLATE_FILE
+    if template_path.exists():
+        return template_path.read_text(encoding="utf-8")
+    return CLAUDE_MD_WORKER_TEMPLATE_FALLBACK
 
 
 # ===================================================================
@@ -234,6 +302,11 @@ def cmd_install(args):
         if not src.exists():
             continue
 
+        if rel in PROTECTED_FILES and dst.exists():
+            print("  [=] {} (protected, skipping)".format(rel))
+            skipped += 1
+            continue
+
         if dst.exists() and not args.force:
             print("  [=] {} (exists, skipping)".format(rel))
             skipped += 1
@@ -257,20 +330,149 @@ def cmd_install(args):
             skipped += 1
             continue
 
+        # Back up protected files inside this directory before --force overwrites it
+        saved = {}
         if dst.exists() and args.force:
+            for pf in PROTECTED_FILES:
+                if pf.startswith(rel + "/"):
+                    pf_path = target / pf
+                    if pf_path.exists():
+                        saved[pf] = pf_path.read_text(encoding="utf-8")
             shutil.rmtree(str(dst))
 
         shutil.copytree(
             str(src), str(dst),
             ignore=shutil.ignore_patterns(*EXCLUDED),
         )
+
+        # Restore protected files
+        for pf, content in saved.items():
+            pf_path = target / pf
+            pf_path.parent.mkdir(parents=True, exist_ok=True)
+            pf_path.write_text(content, encoding="utf-8")
+            print("  [=] {} (protected, restored)".format(pf))
+
         print("  [+] {}/".format(rel))
         copied += 1
+
+    # Copy workspace file, renaming to match the target folder name
+    ws_src = METAK_HOME / WORKSPACE_TEMPLATE
+    if ws_src.exists():
+        ws_name = target.name + ".code-workspace"
+        ws_dst = target / ws_name
+        if ws_dst.exists() and not args.force:
+            print("  [=] {} (exists, skipping)".format(ws_name))
+            skipped += 1
+        else:
+            shutil.copy2(str(ws_src), str(ws_dst))
+            print("  [+] {}".format(ws_name))
+            copied += 1
 
     print()
     print("Done. {} copied, {} skipped.".format(copied, skipped))
     if skipped and not args.force:
         print("Use --force to overwrite existing files.")
+
+
+# ===================================================================
+# uninstall command
+# ===================================================================
+MANIFESTS_FILE = "metakitchen/manifests.json"
+
+
+def _load_all_known_paths():
+    """Load all file and directory paths from every manifest version.
+
+    Returns (files, dirs) where each is a set of relative path strings.
+    """
+    manifests_path = METAK_HOME / MANIFESTS_FILE
+    if not manifests_path.exists():
+        # Fall back to current TEMPLATE_FILES / TEMPLATE_DIRS
+        return set(TEMPLATE_FILES), set(TEMPLATE_DIRS)
+
+    data = json.loads(manifests_path.read_text(encoding="utf-8"))
+    all_files = set()
+    all_dirs = set()
+    for entry in data:
+        all_files.update(entry.get("files", []))
+        all_dirs.update(entry.get("dirs", []))
+    return all_files, all_dirs
+
+
+def cmd_uninstall(args):
+    """Remove MetaKitchen files from the current (or specified) directory."""
+    target = Path(args.target).resolve()
+
+    if not target.exists():
+        print("Error: target directory '{}' does not exist.".format(target))
+        sys.exit(1)
+
+    if target == METAK_HOME:
+        print("Error: cannot uninstall from the MetaKitchen repo itself.")
+        sys.exit(1)
+
+    all_files, all_dirs = _load_all_known_paths()
+
+    # Also pick up any *.code-workspace files (name may vary per project)
+    for ws in target.glob("*.code-workspace"):
+        all_files.add(str(ws.relative_to(target)))
+
+    # Build lists of what actually exists in the target
+    files_to_remove = []
+    dirs_to_remove = []
+
+    for rel in sorted(all_files):
+        p = target / rel
+        if p.exists():
+            files_to_remove.append(rel)
+
+    for rel in sorted(all_dirs):
+        p = target / rel
+        if p.is_dir():
+            dirs_to_remove.append(rel)
+
+    if not files_to_remove and not dirs_to_remove:
+        print("No MetaKitchen files found in: {}".format(target))
+        return
+
+    # Show what will be removed
+    print("The following MetaKitchen files will be removed from: {}".format(target))
+    print()
+    for rel in files_to_remove:
+        print("  [-] {}".format(rel))
+    for rel in dirs_to_remove:
+        print("  [-] {}/  (entire directory)".format(rel))
+    print()
+
+    if not args.force:
+        print("Run with --force to confirm removal.")
+        return
+
+    # Remove files
+    removed = 0
+    for rel in files_to_remove:
+        p = target / rel
+        p.unlink()
+        removed += 1
+
+    # Clean up empty parent directories left behind by file removal
+    for rel in files_to_remove:
+        parent = (target / rel).parent
+        while parent != target:
+            try:
+                parent.rmdir()  # only succeeds if empty
+            except OSError:
+                break
+            parent = parent.parent
+
+    # Remove directories
+    for rel in dirs_to_remove:
+        p = target / rel
+        if p.is_dir():
+            shutil.rmtree(str(p))
+            removed += 1
+
+    print("Done. Removed {} items.".format(removed))
 
 
 # ===================================================================
@@ -284,8 +486,9 @@ def cmd_add(args):
 
     if not folder_path.exists():
         print("Error: '{}' does not exist.".format(folder_name))
-        print("Add the git submodule first:")
+        print("Create the folder first, e.g.:")
         print("  git submodule add <url> {}".format(folder_name))
+        print("  or: mkdir {}".format(folder_name))
         sys.exit(1)
 
     if not folder_path.is_dir():
@@ -305,10 +508,20 @@ def cmd_add(args):
     else:
         print("  [=] '{}' already in {}".format(folder_name, workspace_path.name))
 
-    if scaffold_agents_md(folder_path, folder_name):
+    if scaffold_agents_md(folder_path, folder_name, root):
         print("  [+] Created {}/AGENTS.md".format(folder_name))
     else:
         print("  [=] {}/AGENTS.md already exists, skipping".format(folder_name))
+
+    if scaffold_custom_md(folder_path, folder_name, root):
+        print("  [+] Created {}/CUSTOM.md".format(folder_name))
+    else:
+        print("  [=] {}/CUSTOM.md already exists, skipping".format(folder_name))
+
+    if scaffold_claude_md(folder_path, folder_name, root):
+        print("  [+] Created {}/.claude/CLAUDE.md".format(folder_name))
+    else:
+        print("  [=] {}/.claude/CLAUDE.md already exists, skipping".format(folder_name))
 
     print()
     print("Done. Open {} in VS Code.".format(workspace_path.name))
@@ -350,12 +563,52 @@ def add_to_workspace(workspace_path, folder_name):
     return True
 
 
-def scaffold_agents_md(folder_path, folder_name):
+def scaffold_agents_md(folder_path, folder_name, root):
     target = folder_path / "AGENTS.md"
     if target.exists():
         return False
+    template = _load_agents_template(root)
     target.write_text(
-        AGENTS_MD_TEMPLATE.format(name=folder_name),
+        template.format(name=folder_name),
+        encoding="utf-8",
+    )
+    return True
+
+
+def scaffold_custom_md(folder_path, folder_name, root):
+    target = folder_path / "CUSTOM.md"
+    if target.exists():
+        return False
+    template = _load_custom_template(root)
+    target.write_text(
+        template.format(name=folder_name),
+        encoding="utf-8",
+    )
+    return True
+
+
+def scaffold_claude_md(folder_path, folder_name, root):
+    """Create .claude/CLAUDE.md with worker identity in a sub-repo folder."""
+    target = folder_path / ".claude" / "CLAUDE.md"
+    if target.exists():
+        return False
+    # Compute relative paths from the sub-repo to metak-shared and metak-orchestrator
+    try:
+        rel = folder_path.relative_to(root)
+        depth = len(rel.parts)
+    except ValueError:
+        depth = 1
+    prefix = "/".join([".."] * depth)
+    metak_shared_rel = prefix + "/metak-shared"
+    metak_orchestrator_rel = prefix + "/metak-orchestrator"
+    template = _load_claude_worker_template(root)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        template.format(
+            name=folder_name,
+            metak_shared_rel=metak_shared_rel,
+            metak_orchestrator_rel=metak_orchestrator_rel,
+        ),
         encoding="utf-8",
     )
     return True
@@ -399,6 +652,23 @@ def main():
         help="Overwrite existing files",
     )
 
+    # -- uninstall --
+    p_uninstall = sub.add_parser(
+        "uninstall",
+        help="Remove MetaKitchen files from a directory",
+    )
+    p_uninstall.add_argument(
+        "target",
+        nargs="?",
+        default=".",
+        help="Target directory (default: current directory)",
+    )
+    p_uninstall.add_argument(
+        "--force", "-f",
+        action="store_true",
+        help="Actually remove files (without this flag, only shows what would be removed)",
+    )
+
     # -- add --
     p_add = sub.add_parser(
         "add",
@@ -415,6 +685,8 @@ def main():
         cmd_setup(args)
     elif args.command == "install":
         cmd_install(args)
+    elif args.command == "uninstall":
+        cmd_uninstall(args)
     elif args.command == "add":
         cmd_add(args)
     else:

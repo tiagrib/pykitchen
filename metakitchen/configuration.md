@@ -26,7 +26,7 @@ Every pointer file contains **role-routing logic** — it directs the agent to `
 
 You don't need to touch the pointer files — just keep `AGENTS.md` up to date. The role selection logic is pre-configured in all of them.
 
-## `meta.code-workspace`
+## `<project>.code-workspace`
 
 Add sub-repos to the `folders` array so VS Code includes them in the multi-root workspace. Each entry is a relative path matching the submodule folder name:
 
