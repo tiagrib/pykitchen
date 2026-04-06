@@ -275,6 +275,43 @@ For changes isolated to one repo, skip the orchestrator. Open an agent terminal 
 3. Never let a worker agent modify `metak-shared/` without explicit approval.
 4. When any agent discovers useful methods, procedures, or tricks during development or testing, they should document them in `metak-shared/LEARNED.md` so the knowledge is available to all agents and future projects.
 
+## Feeding Back Customizations
+
+After using MetaKitchen in a project for a while, you may find that some of your customizations — new agent rules, coding standards, learned tricks — are useful enough to be part of the default templates for all future projects.
+
+The `metak feedback` command analyzes your project's customizations and uses the Claude Code CLI to identify what's worth upstreaming:
+
+```bash
+cd my-project
+metak feedback
+```
+
+This will:
+1. Diff your `AGENTS.md` and `metak-orchestrator/AGENTS.md` against the originals in `METAK_HOME`
+2. Collect all `CUSTOM.md` files (root, orchestrator, sub-repos) that have real content
+3. Collect `metak-shared/LEARNED.md` entries
+4. Scan sub-repo `AGENTS.md` and `CUSTOM.md` files for additions beyond the template boilerplate
+5. Send everything to Claude CLI for analysis of what could improve the templates
+
+**Prerequisites:**
+- **Git** must be available
+- **METAK_HOME** must have a clean working tree (commit or stash first)
+- **Claude Code CLI** must be installed (`npm install -g @anthropic-ai/claude-code`)
+
+To preview the prompt without sending it to Claude:
+
+```bash
+metak feedback --dry-run
+```
+
+You can also target a specific project directory:
+
+```bash
+metak feedback /path/to/my-project
+```
+
+The command is read-only — it never modifies any files. After reviewing Claude's suggestions, you manually update the templates in `METAK_HOME`.
+
 ## Updating MetaKitchen
 
 To get the latest MetaKitchen templates and tooling:
