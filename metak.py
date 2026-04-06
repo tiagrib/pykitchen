@@ -66,11 +66,33 @@ def git_has_uncommitted(target):
 def git_commit_files(target, paths, message):
     """Stage *paths* (relative to *target*) and commit with *message*.
 
-    Returns True on success, False on failure.
+    Paths that are covered by .gitignore are silently skipped.
+    Returns True on success, False on failure (or if nothing to commit).
     """
+    str_paths = [str(p) for p in paths]
+
+    # Filter out gitignored paths so `git add` doesn't fail.
+    try:
+        result = subprocess.run(
+            ["git", "check-ignore", "--"] + str_paths,
+            capture_output=True, text=True, cwd=str(target),
+        )
+        ignored = set(result.stdout.strip().splitlines())
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        ignored = set()
+
+    stageable = [p for p in str_paths if p not in ignored]
+    if ignored:
+        for p in sorted(ignored):
+            print("  [=] {} (gitignored, skipping commit)".format(p))
+
+    if not stageable:
+        print("Nothing to commit (all changed files are gitignored).")
+        return False
+
     try:
         subprocess.run(
-            ["git", "add", "--"] + [str(p) for p in paths],
+            ["git", "add", "--"] + stageable,
             check=True, cwd=str(target),
         )
         subprocess.run(
