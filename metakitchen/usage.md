@@ -398,12 +398,6 @@ If you answer **y**, metak launches an interactive Claude Code session in the pr
 metak update --skip-pull
 ```
 
-**`--force`** — Analyze even if `git pull` reports no new changes (useful if you previously pulled but didn't run update):
-
-```bash
-metak update --force
-```
-
 **`--dry-run`** — Show the prompt that would be sent to Claude CLI without executing it:
 
 ```bash

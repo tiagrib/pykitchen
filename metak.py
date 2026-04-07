@@ -22,6 +22,7 @@ Examples:
     metak feedback
     metak feedback --cached
     metak update
+    metak update --skip-pull
     metak update --cached
     metak uninstall
 """
@@ -1394,11 +1395,6 @@ def cmd_update(args):
         print("  {}".format(pull_output))
         print()
 
-        if "Already up to date" in pull_output and not args.force:
-            print("Templates are already up to date. Nothing to do.")
-            print("Pass --force to analyze anyway.")
-            return
-
     # -- Collect diffs (METAK_HOME as source of truth) -----------------------
     print("Comparing updated templates against project: {}".format(target))
     print()
@@ -1652,11 +1648,6 @@ def main():
         "--skip-pull",
         action="store_true",
         help="Skip the git pull step in METAK_HOME (use current state)",
-    )
-    p_update.add_argument(
-        "--force",
-        action="store_true",
-        help="Analyze even if git pull reports no changes",
     )
 
     args = parser.parse_args()
