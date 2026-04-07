@@ -109,6 +109,7 @@ If your agent doesn't support subagent spawning, the orchestrator will tell you 
 | `metak uninstall [target]` | Remove MetaKitchen files from a project directory |
 | `metak add <folder>` | Register a sub-repo in the workspace and scaffold its `AGENTS.md`, `CUSTOM.md`, and `.claude/CLAUDE.md` |
 | `metak feedback [target]` | Analyze project customizations and suggest improvements for the main templates (requires Claude Code CLI) |
+| `metak update [target]` | Pull latest metak templates and suggest updates for the project (requires Claude Code CLI) |
 
 ## Documentation
 

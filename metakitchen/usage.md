@@ -356,9 +356,75 @@ metak feedback /path/to/my-project
 
 Files that contain only the template placeholder text (headings and HTML comments with no real instructions) are skipped automatically.
 
-## Updating MetaKitchen
+## Updating a Project from Latest Templates
 
-To get the latest MetaKitchen templates and tooling:
+When the MetaKitchen templates are improved (new agent rules, better structure, updated conventions), the `metak update` command helps incorporate those improvements into an existing project without losing your customizations.
+
+### Basic usage
+
+```bash
+cd my-project
+metak update
+```
+
+This runs a multi-step process:
+
+**Step 1 — Pull.** metak runs `git pull` in `METAK_HOME` to fetch the latest template changes.
+
+**Step 2 — Compare.** metak diffs the updated templates against the project's current files. It also collects the project's `CUSTOM.md` files, `LEARNED.md`, and sub-repo files as context so Claude knows what to preserve.
+
+**Step 3 — Analyze.** The diffs and context are sent to Claude CLI (in print mode) which identifies what template improvements should be applied and how they interact with existing project customizations. The analysis is cached to `.metak-update-cache.md` in `METAK_HOME`.
+
+**Step 4 — Apply.** metak asks:
+
+```
+Apply these suggestions to project templates? [y/N]
+```
+
+If you answer **y**, metak launches an interactive Claude Code session in the project directory. Claude proposes edits to the project files, merging template improvements alongside your existing customizations, and waits for approval on each change.
+
+### Prerequisites
+
+- **Git** — must be available on PATH
+- **METAK_HOME** — must have a clean working tree
+- **Project** — must have a clean working tree (since files will be modified)
+- **Claude Code CLI** — must be installed (`npm install -g @anthropic-ai/claude-code`)
+
+### Flags
+
+**`--skip-pull`** — Skip the `git pull` step and use METAK_HOME's current state:
+
+```bash
+metak update --skip-pull
+```
+
+**`--force`** — Analyze even if `git pull` reports no new changes (useful if you previously pulled but didn't run update):
+
+```bash
+metak update --force
+```
+
+**`--dry-run`** — Show the prompt that would be sent to Claude CLI without executing it:
+
+```bash
+metak update --dry-run
+```
+
+**`--cached`** — Skip the pull and analysis phases, go straight to the apply prompt using previously cached results:
+
+```bash
+metak update --cached
+```
+
+### Comparison with `metak install --force`
+
+`metak install --force` is a blunt tool — it overwrites all template files with the latest versions (except protected `CUSTOM.md` files). This is fine for a fresh project, but for a project with customized `AGENTS.md` or `coding-standards.md`, it would erase those customizations.
+
+`metak update` is the smart alternative: it uses Claude to merge template improvements into your existing files, preserving your project-specific additions. Use `install --force` for initial setup or full resets; use `update` for incremental improvements.
+
+## Manual Template Update
+
+If you prefer to update templates manually without Claude:
 
 ```bash
 cd $METAK_HOME    # or wherever you cloned metakitchen

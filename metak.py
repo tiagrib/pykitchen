@@ -8,19 +8,21 @@ Commands:
     metak uninstall          Remove MetaKitchen files from the current directory
     metak add <folder>       Register a sub-repo in the workspace and scaffold AGENTS.md
     metak feedback           Analyze project customizations and suggest template improvements
+    metak update             Pull latest templates and suggest project updates
 
 Prerequisites:
     - Python 3.7+
     - No additional packages required
-    - Claude Code CLI required for `feedback` command (npm install -g @anthropic-ai/claude-code)
+    - Claude Code CLI required for `feedback` and `update` (npm install -g @anthropic-ai/claude-code)
 
 Examples:
     metak setup
     cd my-project && metak install
     metak add frontend
     metak feedback
-    metak feedback --dry-run
     metak feedback --cached
+    metak update
+    metak update --cached
     metak uninstall
 """
 
@@ -978,15 +980,15 @@ Rules:
 {}"""
 
 
-def _invoke_claude_interactive(claude_bin, system_prompt, cwd):
+def _invoke_claude_interactive(claude_bin, system_prompt, initial_message, cwd):
     """Launch Claude CLI interactively in the given directory.
 
-    The system prompt (which includes the analysis) is written to a temp
-    file and passed via --append-system-prompt-file to avoid command-line
-    length limits.
+    The system prompt is written to a temp file and passed via
+    --append-system-prompt-file to avoid command-line length limits.
+    *initial_message* is the first user message that kicks off the session.
     """
     import tempfile
-    fd, prompt_path = tempfile.mkstemp(suffix=".md", prefix="metak-feedback-")
+    fd, prompt_path = tempfile.mkstemp(suffix=".md", prefix="metak-")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(system_prompt)
@@ -994,8 +996,7 @@ def _invoke_claude_interactive(claude_bin, system_prompt, cwd):
             [
                 claude_bin,
                 "--append-system-prompt-file", prompt_path,
-                "Apply the feedback suggestions from the system prompt. "
-                "Show each proposed change and ask for approval before editing.",
+                initial_message,
             ],
             cwd=str(cwd),
         )
@@ -1006,11 +1007,18 @@ def _invoke_claude_interactive(claude_bin, system_prompt, cwd):
             pass
 
 
-def _prompt_and_apply(claude_bin, analysis, metak_home):
-    """Ask the user whether to apply suggestions, then launch interactive session."""
+def _prompt_and_apply(claude_bin, analysis, apply_template, initial_message,
+                      target_dir, target_label):
+    """Ask the user whether to apply suggestions, then launch interactive session.
+
+    *apply_template* is a format string with one ``{}`` for the analysis text.
+    *target_dir* is the working directory for the interactive session.
+    *target_label* is a human-readable name shown in the prompt (e.g. "METAK_HOME").
+    """
     print()
     try:
-        answer = input("Apply these suggestions to METAK_HOME templates? [y/N] ").strip().lower()
+        answer = input("Apply these suggestions to {} templates? [y/N] "
+                       .format(target_label)).strip().lower()
     except (EOFError, KeyboardInterrupt):
         print()
         return
@@ -1020,11 +1028,12 @@ def _prompt_and_apply(claude_bin, analysis, metak_home):
         return
 
     print()
-    print("Launching interactive Claude session in METAK_HOME ({})...".format(metak_home))
+    print("Launching interactive Claude session in {} ({})...".format(
+        target_label, target_dir))
     print("Review and approve each change. Exit when done.")
     print()
-    apply_prompt = APPLY_PROMPT_TEMPLATE.format(analysis)
-    _invoke_claude_interactive(claude_bin, apply_prompt, metak_home)
+    system_prompt = apply_template.format(analysis)
+    _invoke_claude_interactive(claude_bin, system_prompt, initial_message, target_dir)
 
 
 def cmd_feedback(args):
@@ -1077,7 +1086,12 @@ def cmd_feedback(args):
         print("Using cached feedback from {}".format(cache_path))
         print()
         print(analysis)
-        _prompt_and_apply(claude_bin, analysis, metak_home)
+        _prompt_and_apply(
+            claude_bin, analysis, APPLY_PROMPT_TEMPLATE,
+            "Apply the feedback suggestions from the system prompt. "
+            "Show each proposed change and ask for approval before editing.",
+            metak_home, "METAK_HOME",
+        )
         return
 
     # -- Collect diffs -------------------------------------------------------
@@ -1194,7 +1208,301 @@ def cmd_feedback(args):
     print("(Cached to {})".format(cache_path))
 
     # -- Phase 2: ask to apply -----------------------------------------------
-    _prompt_and_apply(claude_bin, analysis, metak_home)
+    _prompt_and_apply(
+        claude_bin, analysis, APPLY_PROMPT_TEMPLATE,
+        "Apply the feedback suggestions from the system prompt. "
+        "Show each proposed change and ask for approval before editing.",
+        metak_home, "METAK_HOME",
+    )
+
+
+# ===================================================================
+# update command
+# ===================================================================
+
+UPDATE_CACHE_FILE = ".metak-update-cache.md"
+
+
+def _build_update_prompt(template_diffs, project_customs, project_subrepo_files,
+                         project_learned):
+    """Assemble the prompt for analyzing template updates against a project."""
+    sections = []
+
+    sections.append("""\
+You are analyzing updates to MetaKitchen's template files to determine how they
+should be incorporated into an existing project. The project was previously
+installed from an older version of these templates and may have its own
+customizations.
+
+Your task: identify which template improvements should be applied to the
+project's files, while PRESERVING any project-specific customizations.
+
+FOCUS ON:
+- New rules, conventions, or agent behaviors added to the templates
+- Improved wording or structure in the templates
+- New sections or instructions that the project doesn't have yet
+- Changes to coding standards or workflow guidelines
+
+PRESERVE:
+- Project-specific details (API endpoints, team names, tech stack choices)
+- Custom rules that only apply to this project
+- Any content in CUSTOM.md files (these are entirely project-owned)
+- Repo-specific instructions in sub-repo AGENTS.md files
+
+DO NOT suggest removing or overwriting project customizations — only ADD or
+MERGE template improvements alongside them.""")
+
+    if template_diffs:
+        sections.append("\n═══ TEMPLATE CHANGES (new METAK_HOME vs project's current files) ═══")
+        sections.append("These diffs show how the updated templates differ from the project's files.")
+        sections.append("The project files may include both outdated template content AND project "
+                        "customizations — distinguish between the two.")
+        for label, diff_text in template_diffs.items():
+            sections.append("\n### {}\n```diff\n{}\n```".format(label, diff_text.rstrip()))
+
+    if project_customs:
+        sections.append("\n═══ PROJECT CUSTOM FILES (preserve these) ═══")
+        sections.append("These are entirely project-owned. Do NOT suggest removing any content here.")
+        for label, content in project_customs.items():
+            sections.append("\n### {}\n```markdown\n{}\n```".format(label, content.rstrip()))
+
+    if project_subrepo_files:
+        sections.append(
+            "\n═══ SUB-REPO AGENT FILES (for context) ═══\n"
+            "These may need updates if the sub-repo AGENTS.md template changed."
+        )
+        for label, content in project_subrepo_files.items():
+            sections.append("\n### {}\n```markdown\n{}\n```".format(label, content.rstrip()))
+
+    if project_learned:
+        sections.append("\n═══ LEARNED.md (project's discoveries — preserve) ═══")
+        sections.append("\n```markdown\n{}\n```".format(project_learned.rstrip()))
+
+    sections.append("""
+═══════════════════════════
+
+For each suggestion, provide:
+1. Which project file to update
+2. What to add or change (be specific — show the text to insert or modify)
+3. Why this template improvement matters
+4. How it merges with any existing project customizations in that file
+
+If the project is already up to date, say so explicitly.""")
+
+    return "\n".join(sections)
+
+
+UPDATE_APPLY_TEMPLATE = """\
+You are updating a project's agent instruction files to incorporate improvements
+from the latest MetaKitchen templates. The analysis below identifies what
+template changes should be applied to this project.
+
+Your working directory is the project root. Files you may edit include:
+
+- AGENTS.md — root agent instructions
+- metak-orchestrator/AGENTS.md — orchestrator agent instructions
+- metak-shared/coding-standards.md — shared coding standards
+- metak-shared/LEARNED.md — discovered methods and tricks
+- Sub-repo AGENTS.md files (e.g. frontend/AGENTS.md)
+
+Rules:
+- PRESERVE all project-specific customizations — merge, don't replace.
+- Do NOT modify CUSTOM.md files — those are entirely project-owned.
+- Show me each proposed change and wait for my approval before editing.
+
+═══ ANALYSIS OF TEMPLATE UPDATES ═══
+
+{}"""
+
+
+def cmd_update(args):
+    """Pull latest MetaKitchen templates and suggest project updates."""
+    target = Path(args.target).resolve()
+
+    # -- Pre-flight checks --------------------------------------------------
+    metak_home = _resolve_metak_home()
+
+    if not target.exists():
+        print("Error: target directory '{}' does not exist.".format(target))
+        sys.exit(1)
+
+    if target == metak_home:
+        print("Error: cannot run update on the MetaKitchen repo itself.")
+        sys.exit(1)
+
+    # Git must be available
+    if not git_available():
+        print("Error: git is not available on PATH.")
+        print(GIT_RECOMMENDED_MSG)
+        sys.exit(1)
+
+    # METAK_HOME must have a clean working tree
+    if git_has_uncommitted(metak_home):
+        print("Error: METAK_HOME has uncommitted changes.")
+        print("Please commit or stash changes in {} before running update.".format(metak_home))
+        sys.exit(1)
+
+    # Target project must have a clean working tree
+    if git_has_uncommitted(target):
+        print("Error: project has uncommitted changes.")
+        print("Please commit or stash changes in {} before running update.".format(target))
+        sys.exit(1)
+
+    # Claude CLI must be available
+    claude_bin = shutil.which("claude")
+    if not claude_bin:
+        print("Error: Claude Code CLI is not installed.")
+        print()
+        print("Install it with:")
+        print("  npm install -g @anthropic-ai/claude-code")
+        print()
+        print("For more info: https://docs.anthropic.com/en/docs/claude-code/overview")
+        sys.exit(1)
+
+    # -- Cached mode ---------------------------------------------------------
+    if args.cached:
+        cache_path = metak_home / UPDATE_CACHE_FILE
+        if not cache_path.exists():
+            print("Error: no cached update analysis found at {}".format(cache_path))
+            print("Run `metak update` first to generate the analysis.")
+            sys.exit(1)
+        analysis = cache_path.read_text(encoding="utf-8")
+        print("Using cached update analysis from {}".format(cache_path))
+        print()
+        print(analysis)
+        _prompt_and_apply(
+            claude_bin, analysis, UPDATE_APPLY_TEMPLATE,
+            "Apply the update suggestions from the system prompt. "
+            "Show each proposed change and ask for approval before editing.",
+            target, "project",
+        )
+        return
+
+    # -- Pull latest in METAK_HOME -------------------------------------------
+    if not args.skip_pull:
+        print("Pulling latest changes in METAK_HOME ({})...".format(metak_home))
+        result = subprocess.run(
+            ["git", "pull"],
+            cwd=str(metak_home),
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print("Error: git pull failed in METAK_HOME.")
+            print(result.stderr.strip())
+            sys.exit(1)
+        pull_output = result.stdout.strip()
+        print("  {}".format(pull_output))
+        print()
+
+        if "Already up to date" in pull_output and not args.force:
+            print("Templates are already up to date. Nothing to do.")
+            print("Pass --force to analyze anyway.")
+            return
+
+    # -- Collect diffs (METAK_HOME as source of truth) -----------------------
+    print("Comparing updated templates against project: {}".format(target))
+    print()
+
+    template_diffs = {}
+    for rel_path in DIFFABLE_FILES:
+        template = metak_home / rel_path
+        project = target / rel_path
+        if template.exists() and project.exists():
+            diff_text = _compute_diff(project, template, rel_path)
+            if diff_text:
+                template_diffs[rel_path] = diff_text
+                print("  [~] {} (differs)".format(rel_path))
+            else:
+                print("  [=] {} (identical)".format(rel_path))
+        elif template.exists():
+            print("  [+] {} (new in templates, not in project)".format(rel_path))
+        else:
+            print("  [-] {} (not in templates)".format(rel_path))
+
+    # -- Collect project CUSTOM.md files (as context to preserve) ------------
+    project_customs = {}
+
+    root_custom = target / "CUSTOM.md"
+    if root_custom.exists():
+        content = root_custom.read_text(encoding="utf-8")
+        if not _is_placeholder_only(content):
+            project_customs["CUSTOM.md (root)"] = content
+            print("  [i] CUSTOM.md (has customizations to preserve)")
+
+    orch_custom = target / "metak-orchestrator" / "CUSTOM.md"
+    if orch_custom.exists():
+        content = orch_custom.read_text(encoding="utf-8")
+        if not _is_placeholder_only(content):
+            project_customs["metak-orchestrator/CUSTOM.md"] = content
+            print("  [i] metak-orchestrator/CUSTOM.md (has customizations to preserve)")
+
+    # -- Collect LEARNED.md --------------------------------------------------
+    project_learned = ""
+    learned_path = target / "metak-shared" / "LEARNED.md"
+    if learned_path.exists():
+        content = learned_path.read_text(encoding="utf-8")
+        if not _is_placeholder_only(content):
+            project_learned = content
+            print("  [i] metak-shared/LEARNED.md (has content to preserve)")
+
+    # -- Collect sub-repo files ----------------------------------------------
+    project_subrepo_files = {}
+    subrepo_folders = _get_workspace_subrepo_folders(target)
+
+    for folder in subrepo_folders:
+        for filename in ("AGENTS.md", "CUSTOM.md"):
+            path = target / folder / filename
+            if path.exists():
+                content = path.read_text(encoding="utf-8")
+                if not _is_placeholder_only(content):
+                    label = "{}/{}".format(folder, filename)
+                    project_subrepo_files[label] = content
+                    print("  [i] {} (has content)".format(label))
+
+    # -- Check if anything differs -------------------------------------------
+    if not template_diffs:
+        print()
+        print("No differences found between templates and project. Already up to date.")
+        return
+
+    # -- Build prompt --------------------------------------------------------
+    prompt = _build_update_prompt(template_diffs, project_customs,
+                                  project_subrepo_files, project_learned)
+
+    # -- Summary -------------------------------------------------------------
+    print()
+    print("Found {} file{} with template differences.".format(
+        len(template_diffs), "s" if len(template_diffs) != 1 else ""))
+
+    if args.dry_run:
+        print()
+        print("--- DRY RUN: prompt that would be sent to Claude CLI ---")
+        print()
+        print(prompt)
+        return
+
+    # -- Phase 1: analyze ----------------------------------------------------
+    print("Sending to Claude CLI for analysis (this may take a minute)...")
+    print()
+    analysis = _invoke_claude_print(claude_bin, prompt)
+    print(analysis)
+
+    if not analysis.strip():
+        print("No analysis returned.")
+        return
+
+    # Save to cache
+    cache_path = metak_home / UPDATE_CACHE_FILE
+    cache_path.write_text(analysis, encoding="utf-8")
+    print("(Cached to {})".format(cache_path))
+
+    # -- Phase 2: ask to apply -----------------------------------------------
+    _prompt_and_apply(
+        claude_bin, analysis, UPDATE_APPLY_TEMPLATE,
+        "Apply the update suggestions from the system prompt. "
+        "Show each proposed change and ask for approval before editing.",
+        target, "project",
+    )
 
 
 # ===================================================================
@@ -1319,6 +1627,38 @@ def main():
         help="Skip analysis and apply previously cached feedback suggestions",
     )
 
+    # -- update --
+    p_update = sub.add_parser(
+        "update",
+        help="Pull latest metak templates and suggest updates for the project",
+    )
+    p_update.add_argument(
+        "target",
+        nargs="?",
+        default=".",
+        help="Target project directory (default: current directory)",
+    )
+    p_update.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the prompt that would be sent to Claude CLI without executing it",
+    )
+    p_update.add_argument(
+        "--cached",
+        action="store_true",
+        help="Skip analysis and apply previously cached update suggestions",
+    )
+    p_update.add_argument(
+        "--skip-pull",
+        action="store_true",
+        help="Skip the git pull step in METAK_HOME (use current state)",
+    )
+    p_update.add_argument(
+        "--force",
+        action="store_true",
+        help="Analyze even if git pull reports no changes",
+    )
+
     args = parser.parse_args()
 
     if args.command == "setup":
@@ -1331,6 +1671,8 @@ def main():
         cmd_add(args)
     elif args.command == "feedback":
         cmd_feedback(args)
+    elif args.command == "update":
+        cmd_update(args)
     else:
         _check_git_or_warn()
         parser.print_help()
