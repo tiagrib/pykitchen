@@ -956,26 +956,20 @@ def _invoke_claude_print(claude_bin, prompt):
 
 
 APPLY_PROMPT_TEMPLATE = """\
-You are updating MetaKitchen template files based on feedback from a project.
-The analysis below identifies instructions, rules, and patterns from a real
-project that could improve the default templates for ALL future projects.
+You are updating MetaKitchen template files based on the ANALYSIS below. The
+analysis has already been done — do NOT re-explore or re-scan the codebase.
+Just read each file mentioned in the analysis, apply the described changes,
+and ask for approval before each edit.
 
-Your working directory is the MetaKitchen repo root. The template files you
-may edit include:
-
-- AGENTS.md — root agent instructions (copied to every project)
-- CUSTOM.md — root custom instructions template
-- metak-orchestrator/AGENTS.md — orchestrator agent instructions
-- metak-shared/coding-standards.md — shared coding standards
-- metak-shared/LEARNED.md — discovered methods and tricks
-- metak-shared/templates/AGENTS.md.template — template for sub-repo AGENTS.md
-- metak-shared/templates/CUSTOM.md.template — template for sub-repo CUSTOM.md
+Your working directory is the MetaKitchen repo root.
 
 Rules:
+- Work through each suggestion in the analysis ONE AT A TIME.
+- For each: read the file, show the proposed change, ask for approval, edit.
+- Do NOT search for additional files or differences beyond what the analysis lists.
+- Do NOT use Agent or Explore tools — everything you need is in the analysis.
 - Only apply changes that are GENERALLY useful across projects.
-- Skip anything project-specific (tech stack, team names, endpoints).
 - Preserve existing template structure and placeholder variables ({{name}}, etc.).
-- Show me each proposed change and wait for my approval before editing.
 
 ═══ ANALYSIS FROM PROJECT ═══
 
@@ -1090,8 +1084,9 @@ def cmd_feedback(args):
         print(analysis)
         _prompt_and_apply(
             claude_bin, analysis, APPLY_PROMPT_TEMPLATE,
-            "Apply the feedback suggestions from the system prompt. "
-            "Show each proposed change and ask for approval before editing.",
+            "The analysis is in your system prompt. Work through each suggestion "
+            "one at a time: read the file, show the change, ask for approval, edit. "
+            "Do not explore or scan — everything you need is already in the analysis.",
             metak_home, "METAK_HOME",
         )
         return
@@ -1225,69 +1220,79 @@ def cmd_feedback(args):
 UPDATE_CACHE_FILE = ".metak-update-cache.md"
 
 
-def _build_update_prompt(template_diffs, project_customs, project_subrepo_files,
-                         project_learned):
+def _build_update_prompt(template_contents, template_diffs, project_customs,
+                         project_subrepo_files, project_learned):
     """Assemble the prompt for analyzing template updates against a project."""
     sections = []
 
     sections.append("""\
 You are analyzing updates to MetaKitchen's template files to determine how they
-should be incorporated into an existing project. The project was previously
-installed from an older version of these templates and may have its own
-customizations.
+should be incorporated into an existing project. The project was installed from
+an older version of these templates and may have its own customizations.
 
-Your task: identify which template improvements should be applied to the
-project's files, while PRESERVING any project-specific customizations.
+CRITICAL RULE — FULL REPLACEMENT vs MERGE:
+For each file, first determine: does the project file contain ANY project-specific
+content? (e.g. specific API endpoints, team names, tech stack choices, custom rules
+not in the template, filled-in sections that were placeholders in the template)
 
-FOCUS ON:
-- New rules, conventions, or agent behaviors added to the templates
-- Improved wording or structure in the templates
-- New sections or instructions that the project doesn't have yet
-- Changes to coding standards or workflow guidelines
+- If NO project-specific content (the file is just old template boilerplate,
+  possibly with different wording or structure): recommend REPLACING THE ENTIRE
+  FILE with the current template. Do not try to merge — just overwrite completely.
+  Provide the full template content as the replacement.
 
-PRESERVE:
-- Project-specific details (API endpoints, team names, tech stack choices)
-- Custom rules that only apply to this project
-- Any content in CUSTOM.md files (these are entirely project-owned)
-- Repo-specific instructions in sub-repo AGENTS.md files
+- If YES project-specific content exists: merge carefully. Start from the current
+  template and insert the project-specific additions into the appropriate sections.
+  Do not preserve old template wording — use the current template's wording for
+  everything that isn't project-specific.
 
-DO NOT suggest removing or overwriting project customizations — only ADD or
-MERGE template improvements alongside them.""")
+CUSTOM.md FILES:
+- If only placeholder text (HTML comments, empty headings, no real rules):
+  REPLACE ENTIRELY with the current template version.
+- If has real project-specific content: update boilerplate to match the current
+  template, preserve the project-specific content.""")
+
+    if template_contents:
+        sections.append("\n═══ CURRENT TEMPLATES (authoritative — this is the target state) ═══")
+        for label, content in template_contents.items():
+            sections.append("\n### {}\n```markdown\n{}\n```".format(label, content.rstrip()))
 
     if template_diffs:
-        sections.append("\n═══ TEMPLATE CHANGES (new METAK_HOME vs project's current files) ═══")
-        sections.append("These diffs show how the updated templates differ from the project's files.")
-        sections.append("The project files may include both outdated template content AND project "
-                        "customizations — distinguish between the two.")
+        sections.append("\n═══ DIFFS (template vs project — for reference) ═══")
+        sections.append("Lines prefixed with `-` are in the project but not the template.")
+        sections.append("Lines prefixed with `+` are in the template but not the project.")
         for label, diff_text in template_diffs.items():
             sections.append("\n### {}\n```diff\n{}\n```".format(label, diff_text.rstrip()))
 
     if project_customs:
-        sections.append("\n═══ PROJECT CUSTOM FILES (preserve these) ═══")
-        sections.append("These are entirely project-owned. Do NOT suggest removing any content here.")
+        sections.append("\n═══ PROJECT CUSTOM FILES ═══")
+        sections.append("If only placeholder text, replace with current template. "
+                        "If has real content, preserve the real content.")
         for label, content in project_customs.items():
             sections.append("\n### {}\n```markdown\n{}\n```".format(label, content.rstrip()))
 
     if project_subrepo_files:
         sections.append(
-            "\n═══ SUB-REPO AGENT FILES (for context) ═══\n"
-            "These may need updates if the sub-repo AGENTS.md template changed."
+            "\n═══ SUB-REPO FILES ═══\n"
+            "Apply the same merge strategy: match the template, keep only "
+            "project-specific additions."
         )
         for label, content in project_subrepo_files.items():
             sections.append("\n### {}\n```markdown\n{}\n```".format(label, content.rstrip()))
 
     if project_learned:
-        sections.append("\n═══ LEARNED.md (project's discoveries — preserve) ═══")
+        sections.append("\n═══ LEARNED.md (preserve all entries) ═══")
         sections.append("\n```markdown\n{}\n```".format(project_learned.rstrip()))
 
     sections.append("""
 ═══════════════════════════
 
-For each suggestion, provide:
-1. Which project file to update
-2. What to add or change (be specific — show the text to insert or modify)
-3. Why this template improvement matters
-4. How it merges with any existing project customizations in that file
+For each file that needs updating:
+
+1. State whether this is a FULL REPLACEMENT or a MERGE.
+2. If FULL REPLACEMENT: just say "Replace entirely with the current template"
+   and provide the complete file content.
+3. If MERGE: show exactly what project-specific content to preserve and where
+   it goes in the new template structure.
 
 If the project is already up to date, say so explicitly.""")
 
@@ -1295,22 +1300,20 @@ If the project is already up to date, say so explicitly.""")
 
 
 UPDATE_APPLY_TEMPLATE = """\
-You are updating a project's agent instruction files to incorporate improvements
-from the latest MetaKitchen templates. The analysis below identifies what
-template changes should be applied to this project.
+You are updating a project's files based on the ANALYSIS below. The analysis
+has already been done — do NOT re-explore or re-scan the codebase.
 
-Your working directory is the project root. Files you may edit include:
-
-- AGENTS.md — root agent instructions
-- metak-orchestrator/AGENTS.md — orchestrator agent instructions
-- metak-shared/coding-standards.md — shared coding standards
-- metak-shared/LEARNED.md — discovered methods and tricks
-- Sub-repo AGENTS.md files (e.g. frontend/AGENTS.md)
+Your working directory is the project root.
 
 Rules:
-- PRESERVE all project-specific customizations — merge, don't replace.
-- Do NOT modify CUSTOM.md files — those are entirely project-owned.
-- Show me each proposed change and wait for my approval before editing.
+- Work through each file in the analysis ONE AT A TIME.
+- If the analysis says FULL REPLACEMENT: use the Write tool to replace the
+  entire file with the provided content. Show the user what you're replacing
+  and ask for approval.
+- If the analysis says MERGE: read the file, show the proposed change, ask
+  for approval, then edit.
+- Do NOT search for additional files or differences beyond what the analysis lists.
+- Do NOT use Agent or Explore tools — everything you need is in the analysis.
 
 ═══ ANALYSIS OF TEMPLATE UPDATES ═══
 
@@ -1374,8 +1377,9 @@ def cmd_update(args):
         print(analysis)
         _prompt_and_apply(
             claude_bin, analysis, UPDATE_APPLY_TEMPLATE,
-            "Apply the update suggestions from the system prompt. "
-            "Show each proposed change and ask for approval before editing.",
+            "The analysis is in your system prompt. Work through each suggestion "
+            "one at a time: read the file, show the change, ask for approval, edit. "
+            "Do not explore or scan — everything you need is already in the analysis.",
             target, "project",
         )
         return
@@ -1396,54 +1400,71 @@ def cmd_update(args):
         print("  {}".format(pull_output))
         print()
 
-    # -- Collect diffs (METAK_HOME as source of truth) -----------------------
+    # -- Compare template-owned files (AGENTS.md, coding-standards, etc.) -----
+    # These are template-owned: the project should NOT have customized them.
+    # If they differ, we overwrite directly — no Claude needed.
     print("Comparing updated templates against project: {}".format(target))
     print()
 
-    template_diffs = {}
+    overwrite_files = []   # (rel_path, template_path) — will be copied directly
     for rel_path in DIFFABLE_FILES:
         template = metak_home / rel_path
         project = target / rel_path
         if template.exists() and project.exists():
             diff_text = _compute_diff(project, template, rel_path)
             if diff_text:
-                template_diffs[rel_path] = diff_text
-                print("  [~] {} (differs)".format(rel_path))
+                overwrite_files.append((rel_path, template))
+                print("  [~] {} (differs — will overwrite)".format(rel_path))
             else:
                 print("  [=] {} (identical)".format(rel_path))
         elif template.exists():
-            print("  [+] {} (new in templates, not in project)".format(rel_path))
-        else:
-            print("  [-] {} (not in templates)".format(rel_path))
+            overwrite_files.append((rel_path, template))
+            print("  [+] {} (new — will copy)".format(rel_path))
 
-    # -- Collect project CUSTOM.md files (as context to preserve) ------------
-    project_customs = {}
+    # -- Compare CUSTOM.md files ---------------------------------------------
+    # These are user-owned. Placeholder-only → overwrite. Real content → Claude merge.
+    merge_files = {}       # rel_path → {project, template}
+    custom_overwrite = []  # (rel_path, template_path) — placeholder-only, overwrite
 
-    root_custom = target / "CUSTOM.md"
-    if root_custom.exists():
-        content = root_custom.read_text(encoding="utf-8")
-        if not _is_placeholder_only(content):
-            project_customs["CUSTOM.md (root)"] = content
-            print("  [i] CUSTOM.md (has customizations to preserve)")
+    custom_paths = ["CUSTOM.md", "metak-orchestrator/CUSTOM.md"]
+    for rel_path in custom_paths:
+        template = metak_home / rel_path
+        project = target / rel_path
+        if template.exists() and project.exists():
+            proj_content = project.read_text(encoding="utf-8")
+            tmpl_content = template.read_text(encoding="utf-8")
+            if proj_content.strip() == tmpl_content.strip():
+                print("  [=] {} (identical)".format(rel_path))
+            elif _is_placeholder_only(proj_content):
+                custom_overwrite.append((rel_path, template))
+                print("  [~] {} (placeholder only — will overwrite)".format(rel_path))
+            else:
+                merge_files[rel_path] = {
+                    "project": proj_content,
+                    "template": tmpl_content,
+                }
+                print("  [!] {} (has customizations — needs merge)".format(rel_path))
 
-    orch_custom = target / "metak-orchestrator" / "CUSTOM.md"
-    if orch_custom.exists():
-        content = orch_custom.read_text(encoding="utf-8")
-        if not _is_placeholder_only(content):
-            project_customs["metak-orchestrator/CUSTOM.md"] = content
-            print("  [i] metak-orchestrator/CUSTOM.md (has customizations to preserve)")
-
-    # -- Collect LEARNED.md --------------------------------------------------
-    project_learned = ""
+    # -- Check LEARNED.md ----------------------------------------------------
+    learned_merge = ""
+    learned_tmpl = ""
     learned_path = target / "metak-shared" / "LEARNED.md"
-    if learned_path.exists():
-        content = learned_path.read_text(encoding="utf-8")
-        if not _is_placeholder_only(content):
-            project_learned = content
-            print("  [i] metak-shared/LEARNED.md (has content to preserve)")
+    learned_template = metak_home / "metak-shared" / "LEARNED.md"
+    if learned_path.exists() and learned_template.exists():
+        proj_content = learned_path.read_text(encoding="utf-8")
+        tmpl_content = learned_template.read_text(encoding="utf-8")
+        if proj_content.strip() == tmpl_content.strip():
+            print("  [=] metak-shared/LEARNED.md (identical)")
+        elif _is_placeholder_only(proj_content):
+            custom_overwrite.append(("metak-shared/LEARNED.md", learned_template))
+            print("  [~] metak-shared/LEARNED.md (placeholder — will overwrite)")
+        else:
+            learned_merge = proj_content
+            learned_tmpl = tmpl_content
+            print("  [!] metak-shared/LEARNED.md (has entries — needs merge)")
 
-    # -- Collect sub-repo files ----------------------------------------------
-    project_subrepo_files = {}
+    # -- Check sub-repo files ------------------------------------------------
+    subrepo_merge = {}
     subrepo_folders = _get_workspace_subrepo_folders(target)
 
     for folder in subrepo_folders:
@@ -1453,23 +1474,61 @@ def cmd_update(args):
                 content = path.read_text(encoding="utf-8")
                 if not _is_placeholder_only(content):
                     label = "{}/{}".format(folder, filename)
-                    project_subrepo_files[label] = content
-                    print("  [i] {} (has content)".format(label))
+                    subrepo_merge[label] = content
+                    print("  [!] {} (has content — needs merge)".format(label))
 
-    # -- Check if anything differs -------------------------------------------
-    if not template_diffs:
+    # -- Overwrite phase (deterministic, no Claude) --------------------------
+    all_overwrites = overwrite_files + custom_overwrite
+    needs_merge = bool(merge_files or learned_merge or subrepo_merge)
+
+    if not all_overwrites and not needs_merge:
         print()
-        print("No differences found between templates and project. Already up to date.")
+        print("No differences found. Already up to date.")
         return
 
-    # -- Build prompt --------------------------------------------------------
-    prompt = _build_update_prompt(template_diffs, project_customs,
-                                  project_subrepo_files, project_learned)
-
-    # -- Summary -------------------------------------------------------------
     print()
-    print("Found {} file{} with template differences.".format(
-        len(template_diffs), "s" if len(template_diffs) != 1 else ""))
+    if all_overwrites:
+        print("{} file{} to overwrite from templates.".format(
+            len(all_overwrites), "s" if len(all_overwrites) != 1 else ""))
+
+        try:
+            answer = input("Overwrite these files from METAK_HOME? [y/N] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+
+        if answer in ("y", "yes"):
+            for rel_path, tmpl_path in all_overwrites:
+                dst = target / rel_path
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(tmpl_path), str(dst))
+                print("  [+] {}".format(rel_path))
+            print("Done.")
+        else:
+            print("Skipped overwrites.")
+
+    # -- Merge phase (Claude-assisted, only for files with real content) ------
+    if not needs_merge:
+        return
+
+    print()
+    merge_count = len(merge_files) + (1 if learned_merge else 0) + len(subrepo_merge)
+    print("{} file{} with project-specific content to merge.".format(
+        merge_count, "s" if merge_count != 1 else ""))
+
+    template_contents = {}
+    project_contents = {}
+
+    for rel_path, data in merge_files.items():
+        template_contents[rel_path] = data["template"]
+        project_contents[rel_path] = data["project"]
+
+    if learned_merge:
+        template_contents["metak-shared/LEARNED.md"] = learned_tmpl
+        project_contents["metak-shared/LEARNED.md"] = learned_merge
+
+    prompt = _build_update_prompt(template_contents, {}, project_contents,
+                                  subrepo_merge, "")
 
     if args.dry_run:
         print()
@@ -1478,8 +1537,7 @@ def cmd_update(args):
         print(prompt)
         return
 
-    # -- Phase 1: analyze ----------------------------------------------------
-    print("Sending to Claude CLI for analysis (this may take a minute)...")
+    print("Sending to Claude CLI for merge analysis (this may take a minute)...")
     print()
     analysis = _invoke_claude_print(claude_bin, prompt)
     print(analysis)
@@ -1493,11 +1551,12 @@ def cmd_update(args):
     cache_path.write_text(analysis, encoding="utf-8")
     print("(Cached to {})".format(cache_path))
 
-    # -- Phase 2: ask to apply -----------------------------------------------
+    # Ask to apply
     _prompt_and_apply(
         claude_bin, analysis, UPDATE_APPLY_TEMPLATE,
-        "Apply the update suggestions from the system prompt. "
-        "Show each proposed change and ask for approval before editing.",
+        "The analysis is in your system prompt. Work through each suggestion "
+        "one at a time: read the file, show the change, ask for approval, edit. "
+        "Do not explore or scan — everything you need is already in the analysis.",
         target, "project",
     )
 
