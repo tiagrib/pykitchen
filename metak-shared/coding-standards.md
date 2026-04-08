@@ -17,13 +17,10 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 - At least one human approval required before merge.
 - CI must pass.
 
-## Integration Tests
+## Testing
 
-- **Real calls only.** No mocks, no fakes, no stubs. Integration tests hit the live backend.
-- Tests must be self-contained: create their own data in setUp() and clean up in tearDown().
-- Assert both the HTTP status code AND the response body field values.
-- Verify response shapes match the canonical API contract exactly.
-- Use a shared API client for all HTTP calls — it should mirror the frontend's actual API service.
+- All code must have tests that pass before committing.
+- Integration test conventions are project-specific — define them in the `tests/CUSTOM.md` file.
 
 ## Documentation
 

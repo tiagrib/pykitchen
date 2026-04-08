@@ -33,7 +33,6 @@ The orchestrator agent coordinates cross-repo work. It:
 - **Breaks work into tasks** in `metak-orchestrator/TASKS.md` with acceptance criteria.
 - **Configures workers** by writing `CUSTOM.md` files in each target repo.
 - **Spawns worker agents** scoped to individual repos and monitors progress.
-- **Reviews completed work** against acceptance criteria and product goals, iterating with follow-up tasks until quality is met.
 - **Never writes application code** — only shared docs, tasks, and CUSTOM.md files.
 
 See `metak-orchestrator/AGENTS.md` for full orchestrator instructions.
@@ -68,12 +67,10 @@ Follow `metak-shared/coding-standards.md` for your repo's language.
 - The structure should be a tree view with brief descriptions of each file and folder
 - If at any point `STRUCT.md` does not exist, pause your current task and create it by analyzing the project
 - Update `STRUCT.md` with every change to the project structure
-- Maintain a `TODO.md` file to track remaining tasks or improvements
-- One single-line entry per topic — no refinement or breakdown, just a note so nothing gets lost
 
 ## When Stuck
 
-- Re-read the relevant `AGENTS.md`, `CUSTOM.md`, and `STRUCT.md` for context you may have missed
+- Re-read the relevant `CUSTOM.md`, and `STRUCT.md` for context you may have missed
 - Check `metak-shared/LEARNED.md` for known pitfalls and solutions
 - Verify your assumptions against the running system, not documentation
 - If still blocked, update `metak-orchestrator/STATUS.md` with what you tried and what failed

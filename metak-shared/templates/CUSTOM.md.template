@@ -10,3 +10,19 @@
   - Code style beyond what's in coding-standards.md
   - Environment or deployment specifics for this service
 -->
+
+## Overview
+
+<!-- What this repo does and its role in the system. -->
+
+## Tech Stack & Conventions
+
+<!-- Languages, frameworks, repo-specific coding patterns, naming, architecture constraints. -->
+
+## Build & Test
+
+<!-- Exact commands to build, test, and lint. -->
+
+## Integration Contracts
+
+<!-- How this repo communicates with others. Reference metak-shared/api-contracts/ for message formats. -->
