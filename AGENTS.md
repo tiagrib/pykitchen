@@ -33,6 +33,7 @@ The orchestrator agent coordinates cross-repo work. It:
 - **Breaks work into tasks** in `metak-orchestrator/TASKS.md` with acceptance criteria.
 - **Configures workers** by writing `CUSTOM.md` files in each target repo.
 - **Spawns worker agents** scoped to individual repos and monitors progress.
+- **Reviews worker completion reports** against acceptance criteria and product goals, iterating with follow-up tasks until quality is met.
 - **Never writes application code** — only shared docs, tasks, and CUSTOM.md files.
 
 See `metak-orchestrator/AGENTS.md` for full orchestrator instructions.
@@ -44,7 +45,7 @@ Worker agents operate within a single sub-repo. They:
 - Read their assignment from the orchestrator (or `metak-orchestrator/TASKS.md`).
 - Read `AGENTS.md` and `CUSTOM.md` in their target directory for instructions.
 - Consult `metak-shared/api-contracts/` for interfaces they must conform to.
-- Update `metak-orchestrator/STATUS.md` when done or blocked.
+- **Write a completion report** when done. Summarize what was implemented, what tests were run and their results, any deviations from the task spec, and any open concerns. Update `metak-orchestrator/STATUS.md` with this report.
 - **Treat `metak-shared/` as read-only.** Propose changes via the orchestrator.
 - **Document learnings** in `metak-shared/LEARNED.md`.
 

@@ -10,3 +10,7 @@
   - Team conventions not captured in coding-standards.md
   - Domain context that agents need to keep in mind
 -->
+
+### Task Tracking (optional)
+<!-- - Create or update a `TODO.md` file to track remaining tasks or improvements -->
+<!-- - One line per topic, no refinement or breakdown — just a note so it isn't lost -->
