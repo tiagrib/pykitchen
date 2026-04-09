@@ -900,7 +900,7 @@ FOCUS ON:
 - New agent behaviors that would benefit most projects
 - Coding standards or workflow improvements worth standardizing
 - Learned methods, procedures, or tricks that are broadly useful
-- Projects' CUSTOM.md files and modifications to AGENTS.md that can be consolidated into the main AGENTS.md template
+- Generally valuable rules found in projects' CUSTOM.md files should be upstreamed into the AGENTS.md templates — CUSTOM.md is for project-specific overrides only, not for general defaults
 
 
 IGNORE:
@@ -935,7 +935,7 @@ IGNORE:
 ═══════════════════════════
 
 For each suggestion, provide:
-1. Which template file to update (e.g., AGENTS.md, CUSTOM.md.template, coding-standards.md, LEARNED.md)
+1. Which template file to update (e.g., AGENTS.md, coding-standards.md, LEARNED.md). Generally useful rules always go into AGENTS.md templates, never into CUSTOM.md templates — CUSTOM.md is for project-specific overrides only.
 2. What to add or change (be specific)
 3. Why it's generally useful across projects
 4. Suggested wording for the template
